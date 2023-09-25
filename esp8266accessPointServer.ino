@@ -22,13 +22,35 @@ const char index_html[] PROGMEM = R"rawliteral(
   <meta charset="UTF-8">
 </head>
 <body>
-  <p><h1>File Upload filezzzz</h1></p>
+  <p><h1>File Upload file</h1></p>
   <p>Free Storage: %FREESPIFFS% | Used Storage: %USEDSPIFFS% | Total Storage: %TOTALSPIFFS%</p>
   <form method="POST" action="/upload" enctype="multipart/form-data"><input type="file" name="data"/><input type="submit" name="upload" value="Upload" title="Upload File"></form>
 
-  <img src="sun">
+  <img src="displayImage" id="mainImage">
+
 
   <p>%FILELIST%</p>
+
+<script>
+  setInterval(function() 
+    {
+      getImage();
+    }, 2000);
+    
+function getImage() {
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      document.getElementById("mainImage").innerHTML =
+      this.responseText;
+    }
+  };
+  xhttp.open("GET", "displayImage", true);
+  xhttp.send();
+
+  document.getElementById("mainImage").src = 'http://192.168.4.1/displayImage';
+}
+</script>
 </body>
 </html>
 )rawliteral";
@@ -38,7 +60,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 String listFiles(bool ishtml) {
   String returnText = "";
   Serial.println("List files");
-  File foundfile = SPIFFS.open("/sun.jpg", "r");
+  File foundfile = SPIFFS.open("/displayImage.jpg", "r");
 
   if (!foundfile) {
     Serial.println("Failed to open file for reading");
@@ -107,29 +129,25 @@ void configureWebServer() {
         request->send(200);
       }, handleUpload);
 
-  server.on("/sun", HTTP_GET, [](AsyncWebServerRequest *request){
-    Serial.println("/" + String(request->url()));
+//change it to user reqeust->arg(0); to pass img name in request argument
+  server.on("/displayImage", HTTP_GET, [](AsyncWebServerRequest *request){
+    Serial.println(String(request->url()));
     
-    request->send(SPIFFS, String(request->url()) + ".jpg", "image/png");
+    request->send(SPIFFS, "/displayImage.jpg", "image/png");
   });
 }
 
 void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
 
-  File f;
-
   if (!index) {
-//    logmessage = "Upload Start: " + String(filename);
-    // open the file on first call and store the file handle in the request object
-    request->_tempFile = SPIFFS.open("/" + filename, "w");
-//    f = SPIFFS.open("/" + filename, "w");
-//    Serial.println(logmessage);
+    Serial.println(filename);
+    request->_tempFile = SPIFFS.open("/displayImage.jpg", "w");
+    
   }
 
   if (len) {
     // stream the incoming chunk to the opened file
     request->_tempFile.write(data, len);
-//      f.write(data, len);
   }
 
   if (final) {
@@ -138,8 +156,6 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
     
     // close the file handle as the upload is now done
     request->_tempFile.close();
-
-//    f.close();
     
     request->redirect("/");
   }
