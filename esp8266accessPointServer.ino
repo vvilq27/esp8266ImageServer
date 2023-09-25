@@ -26,6 +26,8 @@ const char index_html[] PROGMEM = R"rawliteral(
   <p>Free Storage: %FREESPIFFS% | Used Storage: %USEDSPIFFS% | Total Storage: %TOTALSPIFFS%</p>
   <form method="POST" action="/upload" enctype="multipart/form-data"><input type="file" name="data"/><input type="submit" name="upload" value="Upload" title="Upload File"></form>
 
+  <img src="sun">
+
   <p>%FILELIST%</p>
 </body>
 </html>
@@ -36,28 +38,31 @@ const char index_html[] PROGMEM = R"rawliteral(
 String listFiles(bool ishtml) {
   String returnText = "";
   Serial.println("List files");
-  File foundfile = SPIFFS.open("/difdemo.txt", "r");
+  File foundfile = SPIFFS.open("/sun.jpg", "r");
 
   if (!foundfile) {
     Serial.println("Failed to open file for reading");
     return "";
   }
-  
-  while (foundfile.available()) {
-    Serial.write(foundfile.read());
-  }
+
+//  while (foundfile.available()) {
+//    Serial.write(foundfile.read());
+//  }
+
+
 //  File foundfile = root.openNextFile();
   if (ishtml) {
     returnText += "<table><tr><th align='left'>Name</th><th align='left'>Size</th></tr>";
   }
 //  while (foundfile) {
-    if (ishtml) {
+  if (ishtml) {
       returnText += "<tr align='left'><td>" + String(foundfile.name()) + "</td><td>" + foundfile.size() + "</td></tr>";
     } else {
       returnText += "File: " + String(foundfile.name()) + "\n";
     }
 //    foundfile = root.openNextFile();
 //  }
+
   if (ishtml) {
     returnText += "</table>";
   }
@@ -101,6 +106,12 @@ void configureWebServer() {
   server.on("/upload", HTTP_POST, [](AsyncWebServerRequest *request) {
         request->send(200);
       }, handleUpload);
+
+  server.on("/sun", HTTP_GET, [](AsyncWebServerRequest *request){
+    Serial.println("/" + String(request->url()));
+    
+    request->send(SPIFFS, String(request->url()) + ".jpg", "image/png");
+  });
 }
 
 void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
@@ -146,13 +157,10 @@ void setup(){
   Serial.print("AP IP: ");
   Serial.println(IP);
 
-//  // Print ESP8266 Local IP Address
-//  Serial.print("local ip ");
-//  Serial.println(WiFi.localIP());
-
   configureWebServer();
   
   SPIFFS.begin();                           // Start the SPI Flash Files System
+  SPIFFS.format();
 
   // Start server
   server.begin();
