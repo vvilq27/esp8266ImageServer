@@ -1,138 +1,188 @@
-/*********
-  Rui Santos
-  Complete project details at https://randomnerdtutorials.com/esp8266-nodemcu-access-point-ap-web-server/
-  
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files.
-  The above copyright notice and this permission notice shall be included in all
-  copies or substantial portions of the Software.
-*********/
-
 // Import required libraries
-#include <Arduino.h>
-#include <ESP8266WiFi.h>
-#include <Hash.h>
-#include <ESPAsyncTCP.h>
+//#include <Arduino.h>
+//#include <ESP8266WiFi.h>
+//#include <Hash.h>
+//#include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-//#include <Adafruit_Sensor.h>
-//#include <DHT.h>
+#include <FS.h>   // Include the SPIFFS library
 
-const char* ssid     = "ESP8266";
-const char* password = "12345678";
+//String humanReadableSize(const size_t bytes);
 
+const char* ssid     = "ESP";
+const char* password = "1234";
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
 
-// Generally, you should use "unsigned long" for variables that hold time
-// The value will quickly become too large for an int to store
-unsigned long previousMillis = 0;    // will store last time DHT was updated
-
-// Updates DHT readings every 10 seconds
-const long interval = 10000;  
-
 const char index_html[] PROGMEM = R"rawliteral(
-<!DOCTYPE HTML><html>
+<!DOCTYPE HTML>
+<html lang="en">
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    html {
-     font-family: Arial;
-     display: inline-block;
-     margin: 0px auto;
-     text-align: center;
-    }
-    h2 { font-size: 3.0rem; }
-    p { font-size: 3.0rem; }
-    .units { font-size: 1.2rem; }
-    .dht-labels{
-      font-size: 1.5rem;
-      vertical-align:middle;
-      padding-bottom: 15px;
-    }
-  </style>
+  <meta charset="UTF-8">
 </head>
 <body>
-  <h2>ESP8266 DHT Server</h2>
-  <p>
-    <span class="dht-labels">Temperature</span> 
-    <span id="temperature">%TEMPERATURE%</span>
-    <sup class="units">&deg;C</sup>
-  </p>
-  <p>
-    <span class="dht-labels">Humidity</span>
-    <span id="humidity">%HUMIDITY%</span>
-    <sup class="units">%</sup>
-  </p>
+  <p><h1>File Upload filezzzz</h1></p>
+  <p>Free Storage: %FREESPIFFS% | Used Storage: %USEDSPIFFS% | Total Storage: %TOTALSPIFFS%</p>
+  <form method="POST" action="/upload" enctype="multipart/form-data"><input type="file" name="data"/><input type="submit" name="upload" value="Upload" title="Upload File"></form>
+
+  <p>%FILELIST%</p>
 </body>
-<script>
-setInterval(function ( ) {
-  var xhttp = new XMLHttpRequest();
-  xhttp.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("temperature").innerHTML = this.responseText;
-    }
-  };
-  xhttp.open("GET", "/temperature", true);
-  xhttp.send();
-}, 10000 ) ;
+</html>
+)rawliteral";
 
-setInterval(function ( ) {
-  var xhttp = new XMLHttpRequest();
-  xhttp.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("humidity").innerHTML = this.responseText;
-    }
-  };
-  xhttp.open("GET", "/humidity", true);
-  xhttp.send();
-}, 10000 ) ;
-</script>
-</html>)rawliteral";
 
-// Replaces placeholder with DHT values
-String processor(const String& var){
-  //Serial.println(var);
-  if(var == "TEMPERATURE"){
-    return String(10.23);
+// list all of the files, if ishtml=true, return html rather than simple text
+String listFiles(bool ishtml) {
+  String returnText = "";
+  Serial.println("List files");
+  File foundfile = SPIFFS.open("/difdemo.txt", "r");
+
+  if (!foundfile) {
+    Serial.println("Failed to open file for reading");
+    return "";
   }
-  else if(var == "HUMIDITY"){
-    return String(10.24);
+  
+  while (foundfile.available()) {
+    Serial.write(foundfile.read());
   }
+//  File foundfile = root.openNextFile();
+  if (ishtml) {
+    returnText += "<table><tr><th align='left'>Name</th><th align='left'>Size</th></tr>";
+  }
+//  while (foundfile) {
+    if (ishtml) {
+      returnText += "<tr align='left'><td>" + String(foundfile.name()) + "</td><td>" + foundfile.size() + "</td></tr>";
+    } else {
+      returnText += "File: " + String(foundfile.name()) + "\n";
+    }
+//    foundfile = root.openNextFile();
+//  }
+  if (ishtml) {
+    returnText += "</table>";
+  }
+  
+//  root.close();
+  foundfile.close();
+  return returnText;
+}
+
+// Replaces placeholders
+String processor(const String& var) {
+  if (var == "FILELIST") {
+    return listFiles(true);
+  }
+  FSInfo info;
+  SPIFFS.info(info);
+  
+  if (var == "FREESPIFFS") {  
+    return String((info.totalBytes - info.usedBytes));
+  }
+
+  if (var == "USEDSPIFFS") {
+    return String(info.usedBytes);
+  }
+
+  if (var == "TOTALSPIFFS") {
+    return String(info.totalBytes);
+  }
+
   return String();
+}
+
+void configureWebServer() {
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
+//    String logmessage = "Client:" + request->client()->remoteIP().toString() + + " " + request->url();
+//    Serial.println(logmessage);
+    request->send_P(200, "text/html", index_html, processor);
+  });
+
+  // run handleUpload function when any file is uploaded
+  server.on("/upload", HTTP_POST, [](AsyncWebServerRequest *request) {
+        request->send(200);
+      }, handleUpload);
+}
+
+void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+
+  File f;
+
+  if (!index) {
+//    logmessage = "Upload Start: " + String(filename);
+    // open the file on first call and store the file handle in the request object
+    request->_tempFile = SPIFFS.open("/" + filename, "w");
+//    f = SPIFFS.open("/" + filename, "w");
+//    Serial.println(logmessage);
+  }
+
+  if (len) {
+    // stream the incoming chunk to the opened file
+    request->_tempFile.write(data, len);
+//      f.write(data, len);
+  }
+
+  if (final) {
+    String logmessage = "Upload Complete: " + String(filename) + ",size: " + String(index + len);
+    Serial.println(logmessage);
+    
+    // close the file handle as the upload is now done
+    request->_tempFile.close();
+
+//    f.close();
+    
+    request->redirect("/");
+  }
 }
 
 void setup(){
   // Serial port for debugging purposes
   Serial.begin(115200);
   
-  Serial.print("\nSetting AP (Access Point)…");
+  Serial.print("\nSetting AP (Access Point)…\n");
   // Remove the password parameter, if you want the AP (Access Point) to be open
-  WiFi.softAP(ssid, password);
+  WiFi.softAP(ssid);
 
   IPAddress IP = WiFi.softAPIP();
-  Serial.print("AP IP addreszzzz: ");
+  Serial.print("AP IP: ");
   Serial.println(IP);
 
-  // Print ESP8266 Local IP Address
-  Serial.print("local ipzz ");
-  Serial.println(WiFi.localIP());
+//  // Print ESP8266 Local IP Address
+//  Serial.print("local ip ");
+//  Serial.println(WiFi.localIP());
 
-  // Route for root / web page
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/html", index_html, processor);
-  });
-  server.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/plain", String(10.23).c_str());
-  });
-  server.on("/humidity", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/plain", String(10.24).c_str());
-  });
+  configureWebServer();
+  
+  SPIFFS.begin();                           // Start the SPI Flash Files System
 
   // Start server
   server.begin();
+
+//  File file = SPIFFS.open("/file.txt", "w");
+// 
+//  if (!file) {
+//    Serial.println("Error opening file for writing");
+//    return;
+//  }
+// 
+//  int bytesWritten = file.print("TEST SPIFFS");
+// 
+//  if (bytesWritten == 0) {
+//    Serial.println("File write failed");
+//    return;
+//  }
+// 
+//  file.close();
 }
  
 void loop(){  
 
-  }
+ }
+ 
+// Make size of files human readable
+// source: https://github.com/CelliesProjects/minimalUploadAuthESP32
+//String humanReadableSize(const size_t bytes) {
+//  if (bytes < 1024) return String(bytes) + " B";
+//  else if (bytes < (1024 * 1024)) return String(bytes / 1024.0) + " KB";
+//  else if (bytes < (1024 * 1024 * 1024)) return String(bytes / 1024.0 / 1024.0) + " MB";
+//  else return String(bytes / 1024.0 / 1024.0 / 1024.0) + " GB";
+//}
