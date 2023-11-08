@@ -1,15 +1,19 @@
+//todos
+//try list all sd files
+
+
 // Import required libraries
 //#include <Arduino.h>
 //#include <ESP8266WiFi.h>
 //#include <Hash.h>
-//#include <ESPAsyncTCP.h>
+#include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <FS.h>   // Include the SPIFFS library
 
 //String humanReadableSize(const size_t bytes);
 
 const char* ssid     = "ESP";
-const char* password = "1234";
+const char* password = "";
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -22,9 +26,9 @@ const char index_html[] PROGMEM = R"rawliteral(
   <meta charset="UTF-8">
 </head>
 <body>
-  <p><h1>File Upload file</h1></p>
-  <p>Free Storage: %FREESPIFFS% | Used Storage: %USEDSPIFFS% | Total Storage: %TOTALSPIFFS%</p>
-  <form method="POST" action="/upload" enctype="multipart/form-data"><input type="file" name="data"/><input type="submit" name="upload" value="Upload" title="Upload File"></form>
+//  <p><h1>File Upload file</h1></p>
+//  <p>Free Storage: %FREESPIFFS% | Used Storage: %USEDSPIFFS% | Total Storage: %TOTALSPIFFS%</p>
+//  <form method="POST" action="/upload" enctype="multipart/form-data"><input type="file" name="data"/><input type="submit" name="upload" value="Upload" title="Upload File"></form>
 
   <img src="displayImage" id="mainImage">
 
@@ -35,7 +39,7 @@ const char index_html[] PROGMEM = R"rawliteral(
   setInterval(function() 
     {
       getImage();
-    }, 2000);
+    }, 1100);
     
 function getImage() {
   var xhttp = new XMLHttpRequest();
@@ -99,20 +103,20 @@ String processor(const String& var) {
   if (var == "FILELIST") {
     return listFiles(true);
   }
-  FSInfo info;
-  SPIFFS.info(info);
+//  FSInfo info;
+//  SPIFFS.info(info);
   
-  if (var == "FREESPIFFS") {  
-    return String((info.totalBytes - info.usedBytes));
-  }
-
-  if (var == "USEDSPIFFS") {
-    return String(info.usedBytes);
-  }
-
-  if (var == "TOTALSPIFFS") {
-    return String(info.totalBytes);
-  }
+//  if (var == "FREESPIFFS") {  
+//    return String((info.totalBytes - info.usedBytes));
+//  }
+//
+//  if (var == "USEDSPIFFS") {
+//    return String(info.usedBytes);
+//  }
+//
+//  if (var == "TOTALSPIFFS") {
+//    return String(info.totalBytes);
+//  }
 
   return String();
 }
@@ -151,19 +155,19 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
   }
 
   if (final) {
-    String logmessage = "Upload Complete: " + String(filename) + ",size: " + String(index + len);
+    String logmessage = "Upload Complete: " + String(filename) + ",size: " + String(index + len) + ", img len:" +String(len);
     Serial.println(logmessage);
     
     // close the file handle as the upload is now done
     request->_tempFile.close();
     
-    request->redirect("/");
+//    request->redirect("/");
   }
 }
 
 void setup(){
   // Serial port for debugging purposes
-  Serial.begin(115200);
+  Serial.begin(1000000);
   
   Serial.print("\nSetting AP (Access Point)…\n");
   // Remove the password parameter, if you want the AP (Access Point) to be open
@@ -180,27 +184,28 @@ void setup(){
 
   // Start server
   server.begin();
-
-//  File file = SPIFFS.open("/file.txt", "w");
-// 
-//  if (!file) {
-//    Serial.println("Error opening file for writing");
-//    return;
-//  }
-// 
-//  int bytesWritten = file.print("TEST SPIFFS");
-// 
-//  if (bytesWritten == 0) {
-//    Serial.println("File write failed");
-//    return;
-//  }
-// 
-//  file.close();
 }
  
-void loop(){  
-
+void loop(){ 
+  delay(2000);
+  client_status(); 
  }
+
+ void client_status() {
+
+  unsigned char number_client;
+  struct station_info *stat_info;
+  
+  struct ip_addr *IPaddress;
+  IPAddress address;
+  int i=1;
+  
+  number_client= wifi_softap_get_station_num();
+  stat_info = wifi_softap_get_station_info();
+  
+  Serial.print("Connected Clients: ");
+  Serial.println(number_client);
+}
  
 // Make size of files human readable
 // source: https://github.com/CelliesProjects/minimalUploadAuthESP32
